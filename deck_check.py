@@ -68,6 +68,7 @@ async def main():
             await deck_builder.set_deck_preset(deck1)
             print('Setting deck test success!')
             print('Testing consistancy...')
+            og_deck = deck1
             for i in range(5):
                 print(f"Test {i}...")
                 await deck_builder.open_deck_page()
@@ -97,6 +98,8 @@ async def main():
                     print(deck2['tc'])
                     print(deck2['item'])
                     assert(deck1==deck2)
+                assert(deck1==deck2==og_deck)
+                await deck_builder.set_deck_preset(deck2)
                 print(f"Test {i} success!")
             print("Consistancy passed!")
             print("All tests passed!")

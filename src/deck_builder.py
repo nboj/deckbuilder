@@ -419,6 +419,26 @@ class DeckBuilder:
                     max = idx
                 idx = int((max-min)/2+min)
 
+    async def get_inactive_item_card_list(self) -> list[DeckListControlSpellEntry]:
+        cards = await self.get_item_card_count()
+        list_of_active_item_cards = []
+        every_item_card = await self.get_item_card_list()
+        item_spells_rect = await self.get_item_spells_rectangle()
+        divided_item_spells_rect = self.divide_rectangle(item_spells_rect, columns=8, rows=2)
+        item_card_window: Window = await _maybe_get_named_window(self.client.root_window, "ItemSpells")
+        sprites = await item_card_window.children()
+        positions:list[Rectangle] = []
+        for sprite in sprites:
+            rect = await sprite.scale_to_client();
+            positions.append(rect)
+        for index, card in enumerate(divided_item_spells_rect):
+            for pos in positions:
+                #print((pos.x1, pos.y1), (card.x1, card.y1))
+                if abs(pos.x1 - card.x1) < 15 and abs(pos.y1 - card.y1) < 15:
+                    list_of_active_item_cards.append(every_item_card[index])
+
+        return list_of_active_item_cards
+
     async def get_active_item_card_list(self) -> list[DeckListControlSpellEntry]:
         count = await self.get_item_card_count()
         list_of_active_item_cards = []
@@ -436,7 +456,7 @@ class DeckBuilder:
                 #print((pos.x1, pos.y1), (card.x1, card.y1))
                 if abs(pos.x1 - card.x1) < 15 and abs(pos.y1 - card.y1) < 15:
                     list_of_active_item_cards.append(every_item_card[index])
-        return [item for item in every_item_card if item not in list_of_active_item_cards[:count]]
+        return [item for item in every_item_card[:count] if item not in list_of_active_item_cards]
 
         #raise Exception("here")
         #for sprite in sprites:
@@ -510,6 +530,25 @@ class DeckBuilder:
                 if not await graphical.maybe_read_type_name() == '':
                     list_of_item_spell_graphicals.append(graphical)
         return list_of_item_spell_graphicals
+
+    async def clear_item_deck(self) -> None:
+        item_spells_rect = await self.get_item_spells_rectangle()
+        divided_item_spells_rect = self.divide_rectangle(item_spells_rect, columns=8, rows=2)
+        item_cards = await self.get_item_card_list()
+        while (True): 
+            active_item_cards = await self.get_active_item_card_list()
+            if len(active_item_cards) <= 0:
+                break
+            cards = []
+            for idx, item in enumerate(item_cards):
+                is_active = True in [item.base_address==other.base_address for other in active_item_cards]
+                if is_active:
+                    cards.append(idx)
+            for card in cards:
+                async with self.client.mouse_handler:
+                    await self.client.mouse_handler.click(*divided_item_spells_rect[card].center())
+
+        print("done")
 
     async def clear_deck(self) -> None:
         clear_deck_button = await _maybe_get_named_window(self._deck_config_window, "ClearDeckButton")
@@ -702,6 +741,43 @@ class DeckBuilder:
     async def remove_by_predicate(self, predicate: callable, number_of_copies: Optional[int]):
         pass
 
+    async def add_item_by_name(self, name: str, number_of_copies: int):
+        """
+        builder.add_card_by_name("unicorn", number_of_copies: int | None)
+        -> number_of_copies = None: add max copies
+        -> raises: ValueError(already at max copies)
+        -> raises: ValueError(card not found)
+        """
+        item_spells_rect = await self.get_item_spells_rectangle()
+        divided_item_spells_rect = self.divide_rectangle(item_spells_rect, columns=8, rows=2)
+        item_cards = await self.get_item_card_list()
+
+        active_item_cards = await self.get_active_item_card_list()
+        #inactive_item_cards = await self.get_inactive_item_card_list()
+        inactive_item_cards = [item for item in item_cards if item not in active_item_cards]
+        cards = []
+        for idx, item in enumerate(item_cards):
+            graphical = await item.graphical_spell(); assert(graphical is not None);
+            template = await graphical.spell_template(); assert(template is not None);
+            template_name = await template.name()
+            if template_name==name:
+                cards.append((item, idx))
+        inactive_cards = []
+        active_cards = []
+        inactive_cards = [item for item in cards if item[0] in inactive_item_cards]
+        active_cards = [item for item in cards if item[0] in active_item_cards]
+
+        if len(active_cards) > number_of_copies:
+            for index in range(len(active_item_cards)-number_of_copies):
+                async with self.client.mouse_handler:
+                    await self.client.mouse_handler.click(*divided_item_spells_rect[active_cards[index][1]].center())
+                await asyncio.sleep(0.3)
+        elif len(active_cards) < number_of_copies:
+            for index in range(number_of_copies-len(active_item_cards)):
+                async with self.client.mouse_handler:
+                    await self.client.mouse_handler.click(*divided_item_spells_rect[inactive_cards[index][1]].center())
+                await asyncio.sleep(0.3)
+
     async def add_by_name(self, name: str, number_of_copies: Optional[int]):
         """
         builder.add_card_by_name("unicorn", number_of_copies: int | None)
@@ -877,6 +953,7 @@ class DeckBuilder:
         await self.open_deck_page()
         await self.open_and_close_deck_page()
         await self.clear_deck()
+        await self.clear_item_deck()
         await self.switch_card_type_window()
         await self.clear_deck_tcs()
         await self.open_and_close_deck_page()
@@ -891,6 +968,9 @@ class DeckBuilder:
             elif section == "normal":
                 for card in (preset[section]).keys():
                     await self.add_by_name(card, (preset[section])[card])
+            elif section == "item":
+                for card in (preset[section]).keys():
+                    await self.add_item_by_name(card, (preset[section])[card])
 
 if __name__ == "__main__":
     pass
