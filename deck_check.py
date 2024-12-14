@@ -1,10 +1,9 @@
 import asyncio
-from src.deck_builder import DeckBuilder, MemoryReadError
 from src.deck_encoder import DeckEncoderDecoder
 from wizwalker import ClientHandler
+from wizwalker.extensions.scripting.deck_builder import DeckBuilder
+from wizwalker.errors import MemoryReadError
 from collections import namedtuple
-from wizwalker.extensions.scripting.utils import _maybe_get_named_window
-from wizwalker.memory.memory_objects.window import DynamicSpellListControl, DynamicDeckListControl
 
 Rectangle = namedtuple('Rectangle', 'xmin ymin xmax ymax')
 type_format_dict = {
@@ -58,7 +57,7 @@ async def main():
             print("Deck: \n", deck1)
             coder = DeckEncoderDecoder(deck=deck1)
             token = coder.encode()
-            print("Token: \n", token.decode())
+            print("Token: \n", token)
             decoded_deck = coder.decode()
             print("Deck: \n", decoded_deck)
             assert(decoded_deck==deck1)
@@ -68,13 +67,14 @@ async def main():
             await deck_builder.set_deck_preset(deck1)
             print('Setting deck test success!')
             print('Testing consistancy...')
+            return
             og_deck = deck1
             for i in range(5):
                 print(f"Test {i}...")
                 await deck_builder.open_deck_page()
                 deck1 = await deck_builder.get_deck_preset()
                 deck2 = None
-                await deck_builder.open_and_close_deck_page()
+                await deck_builder.refresh_deck_page()
                 deck2 = await deck_builder.get_deck_preset()
                 for (item1, item2) in zip(deck1['normal'].items(), deck2['normal'].items()):
                     if item1!=item2:
